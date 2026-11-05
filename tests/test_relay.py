@@ -1,5 +1,6 @@
 """Fast checks: address handling, rendering, the request guards and a full round trip
 through a real relay with a fake extension. Run: python -m unittest discover -s tests"""
+
 import json
 import sys
 import threading
@@ -22,17 +23,53 @@ def listing(items):
 
 
 POST = [
-    listing([{"kind": "t3", "data": {
-        "title": "Test post", "subreddit": "test", "author": "op1", "score": 10, "upvote_ratio": 0.9,
-        "num_comments": 3, "created_utc": 1762300000, "permalink": "/r/test/comments/abc/t/",
-        "is_self": True, "selftext": "Body text"}}]),
-    listing([
-        {"kind": "t1", "data": {"author": "bob", "score": 3, "body": "Nice", "permalink": "/c/1/",
-                                "replies": listing([{"kind": "t1", "data": {
-                                    "author": "op1", "score": 2, "body": "Thanks", "permalink": "/c/2/",
-                                    "replies": ""}}])}},
-        {"kind": "more", "data": {"count": 4}},
-    ]),
+    listing(
+        [
+            {
+                "kind": "t3",
+                "data": {
+                    "title": "Test post",
+                    "subreddit": "test",
+                    "author": "op1",
+                    "score": 10,
+                    "upvote_ratio": 0.9,
+                    "num_comments": 3,
+                    "created_utc": 1762300000,
+                    "permalink": "/r/test/comments/abc/t/",
+                    "is_self": True,
+                    "selftext": "Body text",
+                },
+            }
+        ]
+    ),
+    listing(
+        [
+            {
+                "kind": "t1",
+                "data": {
+                    "author": "bob",
+                    "score": 3,
+                    "body": "Nice",
+                    "permalink": "/c/1/",
+                    "replies": listing(
+                        [
+                            {
+                                "kind": "t1",
+                                "data": {
+                                    "author": "op1",
+                                    "score": 2,
+                                    "body": "Thanks",
+                                    "permalink": "/c/2/",
+                                    "replies": "",
+                                },
+                            }
+                        ]
+                    ),
+                },
+            },
+            {"kind": "more", "data": {"count": 4}},
+        ]
+    ),
 ]
 
 
@@ -76,38 +113,80 @@ class Render(unittest.TestCase):
         self.assertIn("[4 more replies not loaded", text)
 
     def test_listing(self):
-        text = reddit.render(listing([{"kind": "t3", "data": {
-            "title": "A", "subreddit": "test", "score": 5, "num_comments": 1, "permalink": "/r/test/a/"}}]))
-        self.assertIn("r/test  A", text)
+        text = reddit.render(
+            listing(
+                [
+                    {
+                        "kind": "t3",
+                        "data": {
+                            "title": "A",
+                            "subreddit": "test",
+                            "score": 5,
+                            "num_comments": 1,
+                            "author": "x",
+                            "created_utc": 1762300000,
+                            "permalink": "/r/test/a/",
+                            "selftext": "word " * 100,
+                        },
+                    },
+                    {
+                        "kind": "t1",
+                        "data": {
+                            "link_title": "B",
+                            "subreddit": "test",
+                            "score": 2,
+                            "author": "y",
+                            "created_utc": 1762300000,
+                            "permalink": "/r/test/b/c/",
+                            "body": "Reply",
+                        },
+                    },
+                ]
+            )
+        )
+        self.assertIn(
+            "5 points · 1 comments · r/test · 2025-11-04 · u/x\n  A\n  https://www.reddit.com/r/test/a/", text
+        )
+        self.assertIn("...", text)  # the long self text is cut to a snippet
+        self.assertIn("2 points · r/test · 2025-11-04 · u/y\n  Comment on: B", text)
         self.assertEqual(reddit.render(listing([])), "(no results)")
 
     def test_search_page(self):
-        html = ('<div class="contents"><div class=" search-result search-result-link has-thumbnail" '
-                'data-fullname="t3_abc"><header class="search-result-header"><a href="https://old.reddit.com'
-                '/r/test/comments/abc/t/" class="search-title may-blank" >Fish &amp; chips</a></header>'
-                '<span class="search-score">1,467 points</span> <a href="x" class="search-comments may-blank" >'
-                '138 comments</a> <time title="t" datetime="2026-07-09T19:04:47+00:00">3 months ago</time> '
-                '<a href="u" class="author may-blank id-t2_x" >someone</a> <a href="s" '
-                'class="search-subreddit-link may-blank" >r/test</a><div class="search-result-body">'
-                '<div class="md"><p>Snippet <em>text</em></p></div></div></div>')
+        html = (
+            '<div class="contents"><div class=" search-result search-result-link has-thumbnail" '
+            'data-fullname="t3_abc"><header class="search-result-header"><a href="https://old.reddit.com'
+            '/r/test/comments/abc/t/" class="search-title may-blank" >Fish &amp; chips</a></header>'
+            '<span class="search-score">1,467 points</span> <a href="x" class="search-comments may-blank" >'
+            '138 comments</a> <time title="t" datetime="2026-07-09T19:04:47+00:00">3 months ago</time> '
+            '<a href="u" class="author may-blank id-t2_x" >someone</a> <a href="s" '
+            'class="search-subreddit-link may-blank" >r/test</a><div class="search-result-body">'
+            '<div class="md"><p>Snippet <em>text</em></p></div></div></div>'
+        )
         [r] = reddit.parse_search(html)
         self.assertEqual(r["title"], "Fish & chips")
         self.assertEqual(r["url"], "https://www.reddit.com/r/test/comments/abc/t/")
-        self.assertEqual((r["score"], r["comments"], r["date"]), ("1,467 points", "138 comments", "2026-07-09"))
+        self.assertEqual(
+            (r["score"], r["comments"], r["date"]), ("1,467 points", "138 comments", "2026-07-09")
+        )
         self.assertEqual((r["author"], r["subreddit"], r["snippet"]), ("someone", "r/test", "Snippet text"))
         self.assertIn("u/someone", reddit.render_results([r]))
         self.assertEqual(reddit.parse_search("<html>no results</html>"), [])
 
     def test_old_listing_page(self):
-        html = ('<div class=" thing id-t3_abc odd link self" data-fullname="t3_abc" data-author="someone" '
-                'data-subreddit-prefixed="r/test" data-timestamp="1793880943000" '
-                'data-permalink="/r/test/comments/abc/t/" data-comments-count="7" data-score="12" '
-                'data-promoted="false" ><p class="title"><a class="title may-blank" href="/r/test/comments/abc/t/" '
-                '>A title</a></p></div>'
-                '<div class=" thing id-t3_ad" data-promoted="true" data-permalink="/ad/"><a class="title">Ad</a></div>')
+        html = (
+            '<div class=" thing id-t3_abc odd link self" data-fullname="t3_abc" data-author="someone" '
+            'data-subreddit-prefixed="r/test" data-timestamp="1793880943000" '
+            'data-permalink="/r/test/comments/abc/t/" data-comments-count="7" data-score="12" '
+            'data-promoted="false" ><p class="title">'
+            '<a class="title may-blank" href="/r/test/comments/abc/t/" >A title</a></p></div>'
+            '<div class=" thing id-t3_ad" data-promoted="true" data-permalink="/ad/">'
+            '<a class="title">Ad</a></div>'
+        )
         [r] = reddit.parse_listing_html(html)
         self.assertEqual((r["title"], r["score"], r["comments"]), ("A title", "12 points", "7 comments"))
-        self.assertEqual((r["url"], r["subreddit"]), ("https://www.reddit.com/r/test/comments/abc/t/", "r/test"))
+        self.assertEqual(
+            (r["url"], r["subreddit"]), ("https://www.reddit.com/r/test/comments/abc/t/", "r/test")
+        )
         self.assertEqual(r["date"], "2026-11-05")
 
 
@@ -127,8 +206,11 @@ class RoundTrip(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=10) as r:
             job = json.loads(r.read())
         result = {"id": job["id"], "ok": status == 200, "status": status, "url": job["url"], "body": body}
-        req = urllib.request.Request(self.base + "/result", data=json.dumps(result).encode(),
-                                     headers={"X-Relay": "1", "Content-Type": "application/json"})
+        req = urllib.request.Request(
+            self.base + "/result",
+            data=json.dumps(result).encode(),
+            headers={"X-Relay": "1", "Content-Type": "application/json"},
+        )
         urllib.request.urlopen(req, timeout=10).close()
 
     def test_fetch_returns_extension_body(self):
@@ -165,8 +247,9 @@ class RoundTrip(unittest.TestCase):
 
 class Mcp(unittest.TestCase):
     def test_handshake_and_tools(self):
-        init = mcp_server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                                  "params": {"protocolVersion": "2025-06-18"}})
+        init = mcp_server.handle(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}
+        )
         self.assertEqual(init["result"]["serverInfo"]["name"], "reddit-relay")
         self.assertIsNone(mcp_server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}))
         tools = mcp_server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]["tools"]

@@ -7,6 +7,7 @@ Tools:
 Register with Claude Code:
   claude mcp add reddit -- python /absolute/path/to/mcp_server.py
 """
+
 import json
 import sys
 from pathlib import Path
@@ -57,8 +58,13 @@ def call_tool(name, args):
     if name == "reddit_read":
         return reddit.read(args["url"], int(args.get("limit", 500)))
     if name == "reddit_search":
-        return reddit.search(args["query"], args.get("subreddit"), args.get("sort", "relevance"),
-                             args.get("time", "all"), min(int(args.get("limit", 25)), 100))
+        return reddit.search(
+            args["query"],
+            args.get("subreddit"),
+            args.get("sort", "relevance"),
+            args.get("time", "all"),
+            min(int(args.get("limit", 25)), 100),
+        )
     raise ValueError(f"unknown tool: {name}")
 
 
@@ -67,9 +73,11 @@ def handle(msg):
     if mid is None:
         return None  # a notification needs no answer
     if method == "initialize":
-        result = {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
-                  "capabilities": {"tools": {}},
-                  "serverInfo": {"name": "reddit-relay", "version": VERSION}}
+        result = {
+            "protocolVersion": params.get("protocolVersion", "2025-06-18"),
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "reddit-relay", "version": VERSION},
+        }
     elif method == "tools/list":
         result = {"tools": TOOLS}
     elif method == "tools/call":
@@ -81,7 +89,11 @@ def handle(msg):
     elif method == "ping":
         result = {}
     else:
-        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"unknown method: {method}"}}
+        return {
+            "jsonrpc": "2.0",
+            "id": mid,
+            "error": {"code": -32601, "message": f"unknown method: {method}"},
+        }
     return {"jsonrpc": "2.0", "id": mid, "result": result}
 
 

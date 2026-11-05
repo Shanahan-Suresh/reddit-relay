@@ -4,11 +4,13 @@ and the Reddit Relay Chrome extension, which fetches Reddit with the browser's o
 Endpoints, on 127.0.0.1 only:
   GET  /api/ping        identity, version, and when the extension last polled
   GET  /fetch?url=...   queue one Reddit address, wait for the extension, return Reddit's JSON
+                        (&raw=1: fetch the address as given and return {"url", "body"})
   GET  /job             extension long-poll (needs the X-Relay header)
   POST /result          extension posts a fetched response (needs the X-Relay header)
 
 The server stops itself after --idle-minutes without a /fetch. Clients start it again on demand.
 """
+
 import argparse
 import json
 import re
@@ -23,19 +25,26 @@ from urllib.parse import parse_qsl, urlparse
 APP = "reddit-relay"
 VERSION = "0.2.0"
 PORT = 8902
-POLL_WAIT = 20   # seconds a /job long-poll is held open
-MIN_GAP = 1.0    # seconds between two Reddit requests, to stay polite on the owner's account
-REDDIT_HOSTS = {"reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com",
-                "np.reddit.com", "m.reddit.com", "redd.it"}
+POLL_WAIT = 20  # seconds a /job long-poll is held open
+MIN_GAP = 1.0  # seconds between two Reddit requests, to stay polite on the owner's account
+REDDIT_HOSTS = {
+    "reddit.com",
+    "www.reddit.com",
+    "old.reddit.com",
+    "new.reddit.com",
+    "np.reddit.com",
+    "m.reddit.com",
+    "redd.it",
+}
 
 cond = threading.Condition()
-pending = deque()   # jobs waiting for the extension
-waiting = {}        # job id -> {"event": Event, "result": dict | None}
+pending = deque()  # jobs waiting for the extension
+waiting = {}  # job id -> {"event": Event, "result": dict | None}
 state = {"last_poll": 0.0, "last_dispatch": 0.0, "last_fetch": time.time(), "extension_version": None}
 
 
 def visible_text(html):
-    """The readable words of an error page, without its styles, scripts and tags."""
+    """The readable words of an HTML page or fragment, without its styles, scripts and tags."""
     html = re.sub(r"(?is)<(style|script|svg)\b.*?</\1>", " ", html)
     return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", html))).strip()
 
@@ -50,8 +59,12 @@ def make_job(raw_url, limit=500, raw=False):
     if raw:
         return {"url": u._replace(scheme="https").geturl(), "json": False}
     if host == "redd.it":
-        return {"url": f"https://redd.it{u.path}", "resolve": True, "json": True,
-                "params": {"raw_json": "1", "limit": str(limit)}}
+        return {
+            "url": f"https://redd.it{u.path}",
+            "resolve": True,
+            "json": True,
+            "params": {"raw_json": "1", "limit": str(limit)},
+        }
     params = dict(parse_qsl(u.query))
     params.setdefault("limit", str(limit))
     params["raw_json"] = "1"
@@ -107,9 +120,15 @@ class Handler(BaseHTTPRequestHandler):
         if self.refused(False):
             return
         lp = state["last_poll"]
-        self.send_json(200, {"app": APP, "version": VERSION,
-                             "extension_version": state["extension_version"],
-                             "extension_last_poll_s": round(time.time() - lp, 1) if lp else None})
+        self.send_json(
+            200,
+            {
+                "app": APP,
+                "version": VERSION,
+                "extension_version": state["extension_version"],
+                "extension_last_poll_s": round(time.time() - lp, 1) if lp else None,
+            },
+        )
 
     def job(self):
         if self.refused(True):
@@ -155,16 +174,29 @@ class Handler(BaseHTTPRequestHandler):
                 pending.remove(job)
         if not done:
             lp = state["last_poll"]
-            hint = ("the extension has never polled this relay: is it installed and enabled in Chrome?"
-                    if not lp else f"the extension last polled {round(time.time() - lp)}s ago: is Chrome open?")
+            hint = (
+                "the extension has never polled this relay: is it installed and enabled in Chrome?"
+                if not lp
+                else f"the extension last polled {round(time.time() - lp)}s ago: is Chrome open?"
+            )
             return self.send_json(504, {"error": f"no answer in {timeout:g}s; {hint}"})
         res = slot["result"]
         if res.get("ok") and res.get("status") == 200:
-            return self.send_json(200, raw=(json.dumps({"url": res.get("url"), "body": res["body"]})
-                                            if raw else res["body"]).encode())
-        self.send_json(502, {"error": res.get("error") or f"Reddit returned HTTP {res.get('status')}",
-                             "status": res.get("status"), "url": res.get("url"),
-                             "page_text": visible_text(res.get("body") or "")[:600]})
+            return self.send_json(
+                200,
+                raw=(
+                    json.dumps({"url": res.get("url"), "body": res["body"]}) if raw else res["body"]
+                ).encode(),
+            )
+        self.send_json(
+            502,
+            {
+                "error": res.get("error") or f"Reddit returned HTTP {res.get('status')}",
+                "status": res.get("status"),
+                "url": res.get("url"),
+                "page_text": visible_text(res.get("body") or "")[:600],
+            },
+        )
 
     def do_POST(self):
         if urlparse(self.path).path != "/result":
@@ -199,8 +231,12 @@ def watch_idle(server, idle_minutes):
 def main():
     ap = argparse.ArgumentParser(description="Reddit Relay server (127.0.0.1 only).")
     ap.add_argument("--port", type=int, default=PORT)
-    ap.add_argument("--idle-minutes", type=float, default=60,
-                    help="stop after this long without a /fetch; 0 runs forever (default 60)")
+    ap.add_argument(
+        "--idle-minutes",
+        type=float,
+        default=60,
+        help="stop after this long without a /fetch; 0 runs forever (default 60)",
+    )
     args = ap.parse_args()
     server = make_server(args.port)
     if args.idle_minutes > 0:

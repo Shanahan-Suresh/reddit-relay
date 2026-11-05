@@ -41,6 +41,28 @@ python reddit.py --status              # relay version, and when the extension l
 Any Reddit address works: posts, comment permalinks, subreddits and their sort tabs, users,
 `old.reddit.com`, share links (`/r/<sub>/s/...`) and `redd.it` links.
 
+A post comes back like this (an invented example):
+
+```
+Which mechanical keyboard switches are quietest?
+r/keyboards · u/quiet_typist · 412 points (97% up) · 3 comments · 2026-10-02
+https://www.reddit.com/r/keyboards/comments/abc123/which_switches_are_quietest/
+
+Open office, need something my neighbours won't hate.
+
+------------------------------------------------------------
+Comments
+
+- u/switch_nerd (120 points) https://www.reddit.com/r/keyboards/comments/abc123/x/def456/
+  Silent linears with O-rings. Nothing else comes close.
+  - u/quiet_typist [OP] (40 points) https://www.reddit.com/r/keyboards/comments/abc123/x/ghi789/
+    Any brand you'd pick first?
+[1 more replies not loaded: read a parent comment's permalink]
+```
+
+Listings and search come back one block per post: score, comment count, subreddit, date, author,
+title, link, and a short text snippet.
+
 ## MCP server
 
 ```
@@ -77,6 +99,7 @@ permalink, which the output prints, to read that branch.
 | `mcp_server.py` | MCP stdio server over `reddit.py`. |
 | `extension/` | Manifest V3 extension. `worker.js` polls the relay and fetches with your cookies. |
 | `tests/` | `python -m unittest discover -s tests`: parsing, rendering, guards and a full round trip with a fake extension. |
+| `CLAUDE.md` | Notes for AI agents changing the code: checks, restarting the relay, re-probing Reddit's blocks. |
 
 ## Security
 
@@ -98,6 +121,15 @@ browser's cookie jar.
 Every request goes out under your Reddit account. Reddit's terms forbid bulk scraping, and heavy
 automated use can get an account flagged. reddit-relay is for reading the threads you would open
 yourself, not for crawling.
+
+## Development
+
+```
+python -m unittest discover -s tests
+ruff check . && ruff format --check .
+```
+
+CI runs both on every push, on Python 3.9 and 3.13.
 
 ## Licence
 

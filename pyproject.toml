@@ -1,0 +1,13 @@
+[project]
+name = "reddit-relay"
+version = "0.2.0"
+description = "Let your AI agent read Reddit through your own browser session."
+requires-python = ">=3.9"
+license = "MIT"
+
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
