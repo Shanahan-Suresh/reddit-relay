@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Reddit Relay",
+  "version": "0.2.0",
+  "description": "Lets local tools on this computer read Reddit through your browser session, via a relay on 127.0.0.1:8902.",
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "action": {
+    "default_title": "Reddit Relay",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png" }
+  },
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "permissions": ["alarms"],
+  "host_permissions": [
+    "https://*.reddit.com/*",
+    "https://redd.it/*",
+    "http://127.0.0.1:8902/*"
+  ]
+}
