@@ -1,7 +1,8 @@
 # reddit-relay
 
-Let your AI agent read Reddit through **your own browser session**. Posts, full comment trees,
-subreddits, users and search, with no Reddit API key and no API approval.
+Let your AI agent read Reddit through your own browser session, with no API key or approval.
+
+It reads posts with their full comment trees, subreddits, users and search.
 
 Reddit now refuses most automated reads. Plain HTTP clients get `403` or a login wall, the
 anonymous `.json` endpoints answer only browsers, new API apps need manual approval, and browser
@@ -127,9 +128,10 @@ yourself, not for crawling.
 ```
 python -m unittest discover -s tests
 ruff check . && ruff format --check .
+node --check extension/worker.js
 ```
 
-CI runs both on every push, on Python 3.9 and 3.13.
+CI runs these on every push, with the tests on Python 3.9 and 3.13.
 
 ## Licence
 
